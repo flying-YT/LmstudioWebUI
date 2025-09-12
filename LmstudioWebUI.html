@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>LM Studio Chat with Office File Upload</title>
+<style>
+/* CSSスタイルは前回のものから変更ありません */
+body {
+  font-family: sans-serif;
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+h1 {
+  text-align: center;
+  margin: 10px 0;
+}
+
+#chat-container {
+  border: 1px solid #ccc;
+  padding: 10px;
+  overflow-y: scroll;
+  margin: 0 auto;
+  width: 90%;
+  flex-grow: 1; /* 高さを柔軟に調整 */
+}
+
+.message-wrapper {
+  display: flex;
+  margin-bottom: 10px;
+  width: 100%;
+}
+
+.user-message-wrapper {
+  justify-content: flex-end;
+}
+
+.bot-message-wrapper {
+  justify-content: flex-start;
+}
+
+.message {
+  padding: 8px 12px;
+  border-radius: 10px;
+  word-break: break-word;
+  max-width: 80%;
+  display: inline-block;
+}
+
+.user-message {
+  background-color: #DCF8C6;
+}
+
+.bot-message {
+  background-color: #ECE5DD;
+}
+
+#controls-area {
+  width: 90%;
+  margin: 0 auto;
+  padding: 10px 0;
+}
+
+#file-preview-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  padding: 5px 0;
+}
+
+.preview-item {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.preview-item img, .preview-item .text-preview {
+  max-height: 80px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+}
+
+.preview-item .text-preview {
+    font-size: 12px;
+    padding: 5px;
+    background-color: #f0f0f0;
+    white-space: pre-wrap;
+    overflow-y: hidden;
+    max-width: 150px;
+}
+
+
+.remove-file-btn {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  font-weight: bold;
+  line-height: 18px;
+  text-align: center;
+}
+
+#prompt-area {
+  display: flex;
+  align-items: flex-end; /* 要素の高さを下端で揃える */
+  gap: 10px;
+}
+
+#prompt-input {
+  flex-grow: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  resize: vertical;
+  min-height: 40px; /* 最小高さを設定 */
+  max-height: 200px; /* 最大高さを設定 */
+  overflow-y: auto;
+}
+
+#button-container {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+#file-input-label {
+    padding: 8px 12px;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+}
+
+#send-button {
+  padding: 8px 15px;
+  border-radius: 5px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+}
+
+#clear-button {
+  margin-top: 10px;
+  padding: 8px;
+  width: 100%;
+}
+
+/* Markdown styles */
+.markdown p {
+  margin: 0.5em 0;
+}
+.markdown pre {
+  background-color: #f0f0f0;
+  padding: 10px;
+  border-radius: 5px;
+  overflow-x: auto;
+}
+.markdown code {
+  font-family: monospace;
+}
+.markdown img {
+    max-width: 100%;
+    height: auto;
+}
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.7.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+  <h1>LM Studio Chat</h1>
+
+  <div id="chat-container"></div>
+
+  <div id="controls-area">
+    <div id="file-preview-container"></div>
+    <div id="prompt-area">
+      <textarea id="prompt-input" placeholder="Enter your prompt"></textarea>
+      <div id="button-container">
+        <label id="file-input-label" for="file-input">file</label>
+        <input type="file" id="file-input" multiple style="display: none;" accept=".txt,.md,.js,.py,.html,.css,.json,.csv,.docx,.xlsx,image/*">
+        <button id="send-button">Send</button>
+      </div>
+    </div>
+    <button id="clear-button">Clear History</button>
+  </div>
+
+<script>
+  // --- Global Variables and Initial Setup ---
+  // --- グローバル変数と初期設定 ---
+
+  // DOM Elements
+  // DOM要素の取得
+  const chatContainer = document.getElementById('chat-container');
+  const promptInput = document.getElementById('prompt-input');
+  const sendButton = document.getElementById('send-button');
+  const clearButton = document.getElementById('clear-button');
+  const fileInput = document.getElementById('file-input');
+  const filePreviewContainer = document.getElementById('file-preview-container');
+
+  // Initialize markdown-it with highlight.js for code syntax highlighting.
+  // highlight.js を使ってコードのシンタックスハイライトを有効にした markdown-it を初期化します。
+  const md = new markdownit({
+    highlight: function (str, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        try {
+          // Return highlighted HTML.
+          // ハイライトされたHTMLを返す。
+          return '<pre class="hljs"><code>' +
+            hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+            '</code></pre>';
+        } catch (__) {}
+      }
+      // Return escaped HTML if language is not supported or an error occurs.
+      // 言語がサポートされていない、またはエラーが発生した場合は、エスケープされたHTMLを返す。
+      return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+    }
+  });
+
+  // State variables
+  // 状態を管理する変数
+  // Stores the conversation history to be sent to the API.
+  // APIに送信するための会話履歴を保存します。
+  let conversationHistory = [];
+  // Stores information about the files attached by the user.
+  // ユーザーが添付したファイル情報を保存します。
+  let attachedFiles = [];
+
+  // --- ★★★ 変更点: ファイル選択処理の高度化 ★★★ ---
+  fileInput.addEventListener('change', async (event) => {
+    for (const file of event.target.files) {
+      try {
+        // Process each selected file.
+        // 選択された各ファイルを処理します。
+        const fileData = await processFile(file);
+        if (fileData) {
+          attachedFiles.push(fileData);
+        }
+      } catch (error) {
+        console.error("Error processing file:", file.name, error);
+        // エラーをユーザーに通知するUIを追加しても良い
+      }
+    }
+    // Update the file preview area.
+    // ファイルプレビューエリアを更新します。
+    displayFilePreview();
+    // Clear the file input value to allow selecting the same file again.
+    // 同じファイルを再度選択できるように、ファイル入力の値をクリアします。
+    fileInput.value = ''; // 同じファイルを再度選択できるように値をクリア
+  });
+
+  // Processes a file based on its type.
+  // ファイルをその種類に応じて処理する非同期関数。
+  // ファイルを種類に応じて処理する関数
+  async function processFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      const extension = file.name.split('.').pop().toLowerCase();
+
+      reader.onload = async (e) => {
+        try {
+          let content;
+          const fileType = file.type;
+          
+          // Handle .docx files using mammoth.js.
+          // mammoth.js を使用して .docx ファイルを処理します。
+          if (extension === 'docx') {
+            const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
+            content = result.value;
+          // Handle .xlsx files using xlsx.js (SheetJS).
+          // xlsx.js (SheetJS) を使用して .xlsx ファイルを処理します。
+          } else if (extension === 'xlsx') {
+            const workbook = XLSX.read(e.target.result, { type: 'array' });
+            let fullText = '';
+            // Iterate through each sheet and convert its content to text.
+            // 各シートをループし、その内容をテキストに変換します。
+            workbook.SheetNames.forEach(sheetName => {
+              const worksheet = workbook.Sheets[sheetName];
+              // Convert sheet to plain text.
+              // シートをプレーンテキストに変換します。
+              const sheetText = XLSX.utils.sheet_to_txt(worksheet);
+              fullText += `--- Sheet: ${sheetName} ---\n${sheetText}\n\n`;
+            });
+            content = fullText.trim();
+          } else if (fileType.startsWith('image/')) {
+            content = e.target.result; // Base64
+          } else if (fileType.startsWith('text/') || isTextBasedExtension(extension)) {
+            // Handle text-based files.
+            // テキストベースのファイルを処理します。
+            content = e.target.result; // Plain text
+          } else {
+             // For unsupported file types, try to read as text as a fallback.
+             // サポートされていないファイルタイプの場合、フォールバックとしてテキストとして読み込みを試みます。
+             console.warn(`Unsupported file type: ${file.name}. Reading as text.`);
+             content = e.target.result; // 不明な場合はテキストとして試みる
+          }
+          
+          // Resolve the promise with the file data object.
+          // ファイルデータオブジェクトとともにPromiseを解決します。
+          resolve({
+            name: file.name,
+            type: fileType || extension, // MIMEタイプがなければ拡張子
+            content: content
+          });
+
+        } catch (err) {
+          reject(err);
+        }
+      };
+
+      // Handle file reading errors.
+      // ファイル読み込みエラーを処理します。
+      reader.onerror = (err) => reject(err);
+
+      // Choose the reading method based on the file extension.
+      // 拡張子に応じて読み込み方法を選択します。
+      // 読み込み方法を拡張子によって変更
+      if (extension === 'docx' || extension === 'xlsx') {
+        // Word and Excel files need to be read as ArrayBuffer.
+        // Word/ExcelファイルはArrayBufferとして読み込む必要があります。
+        reader.readAsArrayBuffer(file); // Word/ExcelはArrayBufferとして読み込む
+      } else if (file.type.startsWith('image/')) {
+        // Images are read as Data URL (Base64).
+        // 画像はData URL (Base64)として読み込みます。
+        reader.readAsDataURL(file);
+      } else {
+        // Other files are assumed to be text.
+        // その他のファイルはテキストとみなします。
+        reader.readAsText(file);
+      }
+    });
+  }
+  
+  // Helper function to check if a file extension is for a text-based format.
+  // ファイル拡張子がテキストベースのフォーマットであるかを確認するヘルパー関数。
+  // テキストベースの拡張子か判定するヘルパー関数
+  function isTextBasedExtension(ext) {
+    return ['txt', 'md', 'js', 'py', 'html', 'css', 'json', 'csv'].includes(ext);
+  }
+
+  // --- ファイルプレビュー表示 (変更なし) ---
+  // --- Display File Previews ---
+  // --- ファイルプレビュー表示 ---
+  function displayFilePreview() {
+    filePreviewContainer.innerHTML = '';
+    attachedFiles.forEach((file, index) => {
+      const previewItem = document.createElement('div');
+      previewItem.classList.add('preview-item');
+
+      if (file.type.startsWith('image/')) {
+        // Create an image element for image previews.
+        // 画像プレビュー用のimg要素を作成します。
+        const img = document.createElement('img');
+        img.src = file.content;
+        previewItem.appendChild(img);
+      } else {
+        // Create a text preview for other file types.
+        // 他のファイルタイプにはテキストプレビューを作成します。
+        const textPreview = document.createElement('div');
+        textPreview.classList.add('text-preview');
+        textPreview.textContent = String(file.content).substring(0, 100) + '...';
+        const fileName = document.createElement('p');
+        fileName.textContent = file.name;
+        fileName.style.margin = '0';
+        fileName.style.fontWeight = 'bold';
+        previewItem.append(fileName, textPreview);
+      }
+      
+      // Create a remove button for each preview item.
+      // 各プレビューアイテムに削除ボタンを作成します。
+      const removeBtn = document.createElement('button');
+      removeBtn.classList.add('remove-file-btn');
+      removeBtn.innerHTML = '&times;';
+      removeBtn.onclick = () => {
+        // Remove the file from the array and re-render the previews.
+        // 配列からファイルを削除し、プレビューを再描画します。
+        attachedFiles.splice(index, 1);
+        displayFilePreview();
+      };
+
+      previewItem.appendChild(removeBtn);
+      filePreviewContainer.appendChild(previewItem);
+    });
+  }
+
+  // --- 会話クリア (変更なし) ---
+  // --- Clear Conversation ---
+  // --- 会話のクリア ---
+  function clearConversation() {
+    conversationHistory = [];
+    attachedFiles = [];
+    chatContainer.innerHTML = '';
+    displayFilePreview();
+  }
+  clearButton.addEventListener('click', clearConversation);
+
+  // --- メッセージ送信 (ロジックはほぼ変更なし) ---
+  // --- Send Message ---
+  // --- メッセージ送信 ---
+  sendButton.addEventListener('click', async () => {
+    // 省略... (このセクションは前回のコードと全く同じなので省略しています)
+    const prompt = promptInput.value.trim();
+    // Do nothing if there is no text prompt and no attached files.
+    // テキストプロンプトも添付ファイルもない場合は何もしない。
+    if (!prompt && attachedFiles.length === 0) return;
+
+    promptInput.value = '';
+
+    // This array will be part of the payload for the OpenAI-compatible API.
+    // この配列はOpenAI互換APIへのペイロードの一部になります。
+    const userMessageContent = [];
+    // This string will be the HTML displayed in the user's message bubble.
+    // この文字列はユーザーのメッセージバブルに表示されるHTMLになります。
+    let displayHTML = '';
+
+    if (prompt) {
+      userMessageContent.push({ type: 'text', text: prompt });
+      displayHTML += `<p>${prompt.replace(/\n/g, '<br>')}</p>`;
+    }
+
+    // Process attached files to include them in the message.
+    // 添付ファイルを処理してメッセージに含めます。
+    attachedFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        // For images, create an image_url object for the API and an img tag for display.
+        // 画像の場合、API用に image_url オブジェクトを、表示用に img タグを作成します。
+        userMessageContent.push({
+          type: 'image_url',
+          image_url: { url: file.content }
+        });
+        displayHTML += `<img src="${file.content}" style="max-height: 150px; border-radius: 5px; margin-top: 5px;">`;
+      } else {
+        const fileContentText = `\n\n--- File: ${file.name} ---\n${file.content}`;
+        // For text-based files, append their content to the existing text prompt or create a new one.
+        // テキストベースのファイルの場合、その内容を既存のテキストプロンプトに追加するか、新しいものを作成します。
+        const lastTextContent = userMessageContent.find(c => c.type === 'text');
+        if(lastTextContent){
+            lastTextContent.text += fileContentText;
+        } else {
+            userMessageContent.push({ type: 'text', text: fileContentText });
+        }
+        displayHTML += `<div style="background-color: #eee; padding: 5px; border-radius: 5px; margin-top: 5px; font-size: 0.9em;"><p><b>${file.name}</b></p><pre style="white-space: pre-wrap; max-height: 100px; overflow-y: auto;">${file.content}</pre></div>`;
+      }
+    });
+
+    // Create and display the user's message in the chat container.
+    // ユーザーのメッセージを作成し、チャットコンテナに表示します。
+    const userMessageWrapper = document.createElement('div');
+    userMessageWrapper.classList.add('message-wrapper', 'user-message-wrapper');
+    const userMessageDiv = document.createElement('div');
+    userMessageDiv.classList.add('message', 'user-message');
+    userMessageDiv.innerHTML = displayHTML;
+    userMessageWrapper.appendChild(userMessageDiv);
+    chatContainer.appendChild(userMessageWrapper);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    // Construct the history entry for the API call.
+    // API呼び出し用の履歴エントリを構築します。
+    const historyEntry = { role: "user" };
+    // Use multi-modal format if there are multiple content parts (e.g., text and image).
+    // 複数のコンテントパーツ（例：テキストと画像）がある場合は、マルチモーダル形式を使用します。
+    historyEntry.content = userMessageContent.length === 1 && userMessageContent[0].type === 'text'
+      ? userMessageContent[0].text
+      : userMessageContent;
+    conversationHistory.push(historyEntry);
+
+    // Clear attached files after sending.
+    // 送信後に添付ファイルをクリアします。
+    attachedFiles = [];
+    displayFilePreview();
+    // Keep only the last 7 messages in the history to manage context length.
+    // コンテキストの長さを管理するため、履歴の最後の7メッセージのみを保持します。
+    conversationHistory = conversationHistory.slice(-7);
+
+    // Create a placeholder for the bot's response.
+    // ボットの応答用のプレースホルダーを作成します。
+    const botMessageWrapper = document.createElement('div');
+    botMessageWrapper.classList.add('message-wrapper', 'bot-message-wrapper');
+    const botMessageDiv = document.createElement('div');
+    botMessageDiv.classList.add('message', 'bot-message', 'markdown');
+    botMessageWrapper.appendChild(botMessageDiv);
+    chatContainer.appendChild(botMessageWrapper);
+
+    try {
+      // Fetch the streaming response from the LM Studio server.
+      // LM Studioサーバーからストリーミング応答をフェッチします。
+      const response = await fetch('http://xxx.xxx.xxx.xxx:1234/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: conversationHistory,
+          stream: true
+        }),
+      });
+
+      // Handle HTTP errors.
+      // HTTPエラーを処理します。
+      if (!response.ok) {
+        botMessageDiv.innerHTML = `Error: ${response.status} ${response.statusText}`;
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = '';
+      let responseText = '';
+
+      // Read the stream chunk by chunk.
+      // ストリームをチャンクごとに読み取ります。
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // When the stream is finished, add the complete response to the history.
+          // ストリームが終了したら、完全な応答を履歴に追加します。
+          conversationHistory.push({role: "assistant", content: responseText});
+          break;
+        }
+        // Decode the chunk and add it to the buffer.
+        // チャンクをデコードしてバッファに追加します。
+        buffer += decoder.decode(value, {stream: true});
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+            // Process Server-Sent Events (SSE).
+            // Server-Sent Events (SSE) を処理します。
+            if (line.startsWith('data: ')) {
+                const jsonString = line.substring(6);
+                // The stream ends with a '[DONE]' message.
+                // ストリームは '[DONE]' メッセージで終了します。
+                if (jsonString === '[DONE]') {
+                    botMessageDiv.innerHTML = md.render(responseText);
+                    hljs.highlightAll();
+                    return;
+                }
+                try {
+                    // Parse the JSON data from the stream.
+                    // ストリームからJSONデータを解析します。
+                    const json = JSON.parse(jsonString);
+                    // Extract the content delta from the response.
+                    // 応答からコンテントの差分を抽出します。
+                    const content = json.choices[0].delta?.content || "";
+                    if (content) {
+                        responseText += content;
+                        botMessageDiv.innerHTML = md.render(responseText);
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                } catch (error) {
+                    console.error("Could not parse JSON:", jsonString, error);
+                }
+            }
+        }
+      }
+    } catch (error) {
+      // Display network or other errors in the bot's message bubble.
+      // ネットワークやその他のエラーをボットのメッセージバブルに表示します。
+      botMessageDiv.innerHTML = `An error occurred: ${error.message}`;
+      console.error("Fetch error:", error);
+    } finally {
+        // Final rendering of the complete message to ensure proper formatting.
+        // 適切なフォーマットを保証するため、完全なメッセージの最終レンダリングを行います。
+        botMessageDiv.innerHTML = md.render(responseText);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        hljs.highlightAll();
+        // Ensure the assistant's message is added to history even if the stream ends unexpectedly.
+        // ストリームが予期せず終了した場合でも、アシスタントのメッセージが履歴に追加されるようにします。
+        if (!conversationHistory.find(msg => msg.role === 'assistant' && msg.content === responseText)) {
+            conversationHistory.push({role: "assistant", content: responseText});
+        }
+    }
+  });
+
+  // --- キー入力イベント (変更なし) ---
+  // --- Key Input Events ---
+  // --- キー入力イベント ---
+  promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendButton.click();
+      }
+  });
+</script>
+
+</body>
+</html>
