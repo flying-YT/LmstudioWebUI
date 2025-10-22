@@ -283,21 +283,51 @@ h1 {
           if (extension === 'docx') {
             const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
             content = result.value;
-          // Handle .xlsx files using xlsx.js (SheetJS).
-          // xlsx.js (SheetJS) を使用して .xlsx ファイルを処理します。
           } else if (extension === 'xlsx') {
-            const workbook = XLSX.read(e.target.result, { type: 'array' });
-            let fullText = '';
-            // Iterate through each sheet and convert its content to text.
-            // 各シートをループし、その内容をテキストに変換します。
-            workbook.SheetNames.forEach(sheetName => {
-              const worksheet = workbook.Sheets[sheetName];
-              // Convert sheet to plain text.
-              // シートをプレーンテキストに変換します。
-              const sheetText = XLSX.utils.sheet_to_txt(worksheet);
-              fullText += `--- Sheet: ${sheetName} ---\n${sheetText}\n\n`;
-            });
-            content = fullText.trim();
+            // Handle .xlsx files using xlsx.js (SheetJS).
+            // xlsx.js (SheetJS) を使用して .xlsx ファイルを処理します。
+            const data = new Uint8Array(e.target.result);
+
+            // A real .xlsx file is a ZIP archive, which starts with 'PK' (0x50, 0x4B).
+            // Check for this signature to reliably determine the file type.
+            // 本物の.xlsxファイルはZIP形式のため、「PK」(0x50, 0x4B)で始まります。
+            // この署名を確認し、ファイルタイプを確実に判別します。
+            if (data.length > 2 && data[0] === 0x50 && data[1] === 0x4B) {
+                // If it starts with 'PK', it's a real XLSX file. Parse with SheetJS.
+                // 'PK'で始まる場合、本物のXLSXファイルとしてSheetJSで解析します。
+                try {
+                    const workbook = XLSX.read(e.target.result, { type: 'array' });
+                    let fullText = '';
+                    workbook.SheetNames.forEach(sheetName => {
+                        const worksheet = workbook.Sheets[sheetName];
+                        // *** PROBLEM POINT & SOLUTION ***
+                        // The issue appears to be with sheet_to_txt's character encoding handling.
+                        // Switch to sheet_to_csv, which is often more robust for text extraction.
+                        // 問題は sheet_to_txt の文字コード処理にあるようです。
+                        // より堅牢なテキスト抽出が期待できる sheet_to_csv に切り替えます。
+                        const sheetText = XLSX.utils.sheet_to_csv(worksheet);
+                        fullText += `--- Sheet: ${sheetName} ---\n${sheetText}\n\n`;
+                    });
+                    content = fullText.trim();
+                } catch (err) {
+                    console.error("Error parsing binary XLSX file:", err);
+                    content = "Error: Failed to parse XLSX file.";
+                }
+            } else {
+                // If it doesn't start with 'PK', treat it as a text file (likely UTF-16 LE).
+                // This logic is kept as a fallback for non-standard files.
+                // 'PK'で始まらない場合はテキストファイル（UTF-16 LEの可能性が高い）として扱います。
+                // このロジックは非標準ファイルへの備えとして残します。
+                try {
+                   const decoder = new TextDecoder('utf-16le', { fatal: true });
+                   content = decoder.decode(data);
+                } catch (error) {
+                   // If UTF-16LE fails, try UTF-8 as a final attempt.
+                   // UTF-16LEが失敗した場合、最終手段としてUTF-8を試します。
+                   const decoder = new TextDecoder('utf-8');
+                   content = decoder.decode(data);
+                }
+            }
           } else if (fileType.startsWith('image/')) {
             content = e.target.result; // Base64
           } else if (fileType.startsWith('text/') || isTextBasedExtension(extension)) {
