@@ -3,7 +3,7 @@
 <head>
 <title>LM Studio Chat with Office File Upload</title>
 <style>
-/* CSSスタイルは前回のものから変更ありません */
+
 body {
   font-family: sans-serif;
   margin: 0;
@@ -265,6 +265,7 @@ h1 {
   const clearButton = document.getElementById('clear-button');
   const fileInput = document.getElementById('file-input');
   const filePreviewContainer = document.getElementById('file-preview-container');
+  // Get DOM elements for the settings UI.
   // 設定UIのDOM要素を取得
   const settingsButton = document.getElementById('settings-button');
   const settingsModal = document.getElementById('settings-modal');
@@ -297,6 +298,7 @@ h1 {
   // 状態を管理する変数
   let conversationHistory = [];
   let attachedFiles = [];
+  // Add variables to store server settings.
   // サーバー設定を格納する変数を追加
   let serverIp = '';
   let serverPort = '';
@@ -304,31 +306,46 @@ h1 {
 
   // --- Settings Modal Logic ---
   // --- 設定モーダルのロジック ---
+
+  // Event listener for the settings button click.
+  // 設定ボタンクリック時のイベントリスナー。
   settingsButton.addEventListener('click', () => {
+    // Display the current values in the input fields.
     // 現在の値を入力欄に表示
     ipInput.value = serverIp;
     portInput.value = serverPort;
     settingsModal.style.display = 'block';
   });
 
+  // Event listener for the save settings button click.
+  // 設定保存ボタンクリック時のイベントリスナー。
   saveSettingsButton.addEventListener('click', () => {
+    // Get the input values and store them in variables.
     // 入力値を取得して変数に格納
     serverIp = ipInput.value.trim();
     serverPort = portInput.value.trim();
     if (serverIp && serverPort) {
-      settingsModal.style.display = 'none'; // モーダルを閉じる
-      updateServerDisplay(); // 表示を更新
+      // Close the modal.
+      // モーダルを閉じる
+      settingsModal.style.display = 'none'; 
+      // Update the display.
+      // 表示を更新
+      updateServerDisplay(); 
       alert(`Server set to: http://${serverIp}:${serverPort}`);
     } else {
       alert('Please enter both IP address and port.');
     }
   });
   
+  // Add an event listener for the cancel button.
   // キャンセルボタンのイベントリスナーを追加
   cancelSettingsButton.addEventListener('click', () => {
-    settingsModal.style.display = 'none'; // モーダルを閉じるだけ
+    // Just close the modal.
+    // モーダルを閉じるだけ
+    settingsModal.style.display = 'none'; 
   });
   
+  // Add a function to update the server display.
   // サーバー表示を更新する関数を追加
   function updateServerDisplay() {
       if (serverIp && serverPort) {
@@ -339,8 +356,14 @@ h1 {
   }
 
 
+  // --- ★★★ Advanced File Selection Processing ★★★ ---
   // --- ★★★ ファイル選択処理の高度化 ★★★ ---
+
+  // Event listener for file selection.
+  // ファイル選択時のイベントリスナー。
   fileInput.addEventListener('change', async (event) => {
+    // Loop through each selected file.
+    // 選択された各ファイルをループ処理する。
     for (const file of event.target.files) {
       try {
         // Process each selected file.
@@ -351,6 +374,7 @@ h1 {
         }
       } catch (error) {
         console.error("Error processing file:", file.name, error);
+        // It's also good to add a UI to notify the user of the error.
         // エラーをユーザーに通知するUIを追加しても良い
       }
     }
@@ -359,11 +383,12 @@ h1 {
     displayFilePreview();
     // Clear the file input value to allow selecting the same file again.
     // 同じファイルを再度選択できるように、ファイル入力の値をクリアします。
-    fileInput.value = ''; // 同じファイルを再度選択できるように値をクリア
+    fileInput.value = ''; // Clear the value to allow selecting the same file again.
   });
 
   // Processes a file based on its type.
   // ファイルをその種類に応じて処理する非同期関数。
+  // A function to process files based on their type.
   // ファイルを種類に応じて処理する関数
   async function processFile(file) {
     return new Promise((resolve, reject) => {
@@ -380,6 +405,8 @@ h1 {
             content = result.value;
           } else if (extension === 'xlsx') {
             const data = new Uint8Array(e.target.result);
+            // Check if the file is a binary ZIP (typical for XLSX).
+            // ファイルがバイナリZIP形式（通常のXLSX）か確認する。
             if (data.length > 2 && data[0] === 0x50 && data[1] === 0x4B) {
                 try {
                     const workbook = XLSX.read(e.target.result, { type: 'array' });
@@ -395,6 +422,8 @@ h1 {
                     content = "Error: Failed to parse XLSX file.";
                 }
             } else {
+                // Try decoding as text (e.g., CSV saved with .xlsx extension).
+                // テキストとしてのデコードを試みる（例：.xlsx拡張子で保存されたCSV）。
                 try {
                    const decoder = new TextDecoder('utf-16le', { fatal: true });
                    content = decoder.decode(data);
@@ -409,12 +438,16 @@ h1 {
             content = e.target.result; // Plain text
           } else {
              console.warn(`Unsupported file type: ${file.name}. Reading as text.`);
-             content = e.target.result; // 不明な場合はテキストとして試みる
+             // Attempt to read as text if unknown.
+             // 不明な場合はテキストとして試みる
+             content = e.target.result; 
           }
           
           resolve({
             name: file.name,
-            type: fileType || extension, // MIMEタイプがなければ拡張子
+            // Use extension if MIME type is not available.
+            // MIMEタイプがなければ拡張子
+            type: fileType || extension, 
             content: content
           });
 
@@ -425,6 +458,8 @@ h1 {
 
       reader.onerror = (err) => reject(err);
 
+      // Read file based on its type.
+      // ファイルの種類に応じて読み込む。
       if (extension === 'docx' || extension === 'xlsx') {
         reader.readAsArrayBuffer(file);
       } else if (file.type.startsWith('image/')) {
@@ -435,10 +470,13 @@ h1 {
     });
   }
   
+  // Helper function to check if a file extension is text-based.
+  // ファイル拡張子がテキストベースかどうかを判定するヘルパー関数。
   function isTextBasedExtension(ext) {
     return ['txt', 'md', 'js', 'py', 'html', 'css', 'json', 'csv'].includes(ext);
   }
 
+  // --- Display File Preview ---
   // --- ファイルプレビュー表示---
   function displayFilePreview() {
     filePreviewContainer.innerHTML = '';
@@ -446,6 +484,8 @@ h1 {
       const previewItem = document.createElement('div');
       previewItem.classList.add('preview-item');
 
+      // Check if the file is an image.
+      // ファイルが画像かチェックする。
       if (file.type.startsWith('image/')) {
         const img = document.createElement('img');
         img.src = file.content;
@@ -453,6 +493,8 @@ h1 {
       } else {
         const textPreview = document.createElement('div');
         textPreview.classList.add('text-preview');
+        // Show the first 100 characters of the text content.
+        // テキスト内容の最初の100文字を表示する。
         textPreview.textContent = String(file.content).substring(0, 100) + '...';
         const fileName = document.createElement('p');
         fileName.textContent = file.name;
@@ -464,6 +506,8 @@ h1 {
       const removeBtn = document.createElement('button');
       removeBtn.classList.add('remove-file-btn');
       removeBtn.innerHTML = '&times;';
+      // Set the action to remove the file when the button is clicked.
+      // ボタンがクリックされたときにファイルを削除するアクションを設定。
       removeBtn.onclick = () => {
         attachedFiles.splice(index, 1);
         displayFilePreview();
@@ -474,6 +518,7 @@ h1 {
     });
   }
 
+  // --- Clear Conversation ---
   // --- 会話クリア ---
   function clearConversation() {
     conversationHistory = [];
@@ -481,30 +526,48 @@ h1 {
     chatContainer.innerHTML = '';
     displayFilePreview();
   }
+  // Event listener for the clear conversation button.
+  // 会話クリアボタンのイベントリスナー。
   clearButton.addEventListener('click', clearConversation);
 
+  // --- Send Message ---
   // --- メッセージ送信 ---
   sendButton.addEventListener('click', async () => {
+    // Check if the server settings are configured.
     // サーバー設定がされているかチェック
     if (!serverIp || !serverPort) {
       alert('Please set the server IP address and port in Settings first.');
-      return; // 設定されていなければ処理を中断
+      // Abort the process if not configured.
+      // 設定されていなければ処理を中断
+      return; 
     }
 
     const prompt = promptInput.value.trim();
+    // If there is no prompt and no files attached, do nothing.
+    // プロンプトがなく、ファイルも添付されていない場合は何もしない。
     if (!prompt && attachedFiles.length === 0) return;
 
+    // Clear the input field.
+    // 入力フィールドをクリアする。
     promptInput.value = '';
 
+    // Prepare arrays for API request and display content.
+    // APIリクエスト用と表示用のコンテンツを準備する。
     const userMessageContent = [];
     let displayHTML = '';
 
+    // If there is a text prompt, add it.
+    // テキストプロンプトがあれば追加する。
     if (prompt) {
       userMessageContent.push({ type: 'text', text: prompt });
       displayHTML += `<p>${prompt.replace(/\n/g, '<br>')}</p>`;
     }
 
+    // Process each attached file.
+    // 添付された各ファイルを処理する。
     attachedFiles.forEach(file => {
+      // If the file is an image.
+      // ファイルが画像の場合。
       if (file.type.startsWith('image/')) {
         userMessageContent.push({
           type: 'image_url',
@@ -512,17 +575,25 @@ h1 {
         });
         displayHTML += `<img src="${file.content}" style="max-height: 150px; border-radius: 5px; margin-top: 5px;">`;
       } else {
+        // If the file is text-based.
+        // ファイルがテキストベースの場合。
         const fileContentText = `\n\n--- File: ${file.name} ---\n${file.content}`;
         const lastTextContent = userMessageContent.find(c => c.type === 'text');
+        // If there is already text content, append to it.
+        // 既にテキストコンテンツがあれば追記する。
         if(lastTextContent){
             lastTextContent.text += fileContentText;
         } else {
+            // Otherwise, add a new text content entry.
+            // なければ新しいテキストコンテンツとして追加する。
             userMessageContent.push({ type: 'text', text: fileContentText });
         }
         displayHTML += `<div style="background-color: #eee; padding: 5px; border-radius: 5px; margin-top: 5px; font-size: 0.9em;"><p><b>${file.name}</b></p><pre style="white-space: pre-wrap; max-height: 100px; overflow-y: auto;">${file.content}</pre></div>`;
       }
     });
 
+    // Create and display the user's message bubble.
+    // ユーザーのメッセージ吹き出しを生成して表示する。
     const userMessageWrapper = document.createElement('div');
     userMessageWrapper.classList.add('message-wrapper', 'user-message-wrapper');
     const userMessageDiv = document.createElement('div');
@@ -530,18 +601,28 @@ h1 {
     userMessageDiv.innerHTML = displayHTML;
     userMessageWrapper.appendChild(userMessageDiv);
     chatContainer.appendChild(userMessageWrapper);
+    // Scroll to the bottom of the chat.
+    // チャットの最下部にスクロールする。
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
+    // Create a history entry for the user's message.
+    // ユーザーメッセージの履歴エントリを作成する。
     const historyEntry = { role: "user" };
     historyEntry.content = userMessageContent.length === 1 && userMessageContent[0].type === 'text'
       ? userMessageContent[0].text
       : userMessageContent;
     conversationHistory.push(historyEntry);
 
+    // Clear attached files and update the preview area.
+    // 添付ファイルをクリアし、プレビューエリアを更新する。
     attachedFiles = [];
     displayFilePreview();
+    // Keep only the last 7 entries in the conversation history.
+    // 会話履歴を最後の7件に制限する。
     conversationHistory = conversationHistory.slice(-7);
 
+    // Create a placeholder for the bot's response.
+    // ボットの応答用のプレースホルダーを作成する。
     const botMessageWrapper = document.createElement('div');
     botMessageWrapper.classList.add('message-wrapper', 'bot-message-wrapper');
     const botMessageDiv = document.createElement('div');
@@ -549,12 +630,17 @@ h1 {
     botMessageWrapper.appendChild(botMessageDiv);
     chatContainer.appendChild(botMessageWrapper);
 
-    let responseText = ''; // finallyブロックでも使えるように外で定義
+    // Define responseText outside to be accessible in the finally block.
+    // finallyブロックでも使えるように外で定義
+    let responseText = ''; 
 
     try {
+      // Dynamically generate the API URL based on the settings.
       // 設定されたIPとポートを元に動的にURLを生成
       const apiUrl = `http://${serverIp}:${serverPort}/v1/chat/completions`;
 
+      // Send the request to the API.
+      // APIにリクエストを送信する。
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -564,17 +650,24 @@ h1 {
         }),
       });
 
+      // Throw an error if the HTTP response is not OK.
+      // HTTPレスポンスがOKでない場合はエラーをスローする。
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
+      // Get the reader and decoder for the streaming response.
+      // ストリーミングレスポンスのためのリーダーとデコーダーを取得する。
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let buffer = '';
 
+      // Loop to read the stream.
+      // ストリームを読み取るループ。
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
+          // Let the finally block handle adding history when the stream is complete.
           // ストリーム完了時の履歴追加はfinallyに任せる
           break;
         }
@@ -582,9 +675,12 @@ h1 {
         const lines = buffer.split('\n');
         buffer = lines.pop();
         for (const line of lines) {
+            // Check for server-sent event data lines.
+            // サーバーセントイベントのデータ行かチェックする。
             if (line.startsWith('data: ')) {
                 const jsonString = line.substring(6);
                 if (jsonString === '[DONE]') {
+                    // The stream completion process is handled in the finally block outside the while loop.
                     // ストリーム完了処理はwhileループの外、finallyブロックで行う
                     return; 
                 }
@@ -592,6 +688,8 @@ h1 {
                     const json = JSON.parse(jsonString);
                     const content = json.choices[0].delta?.content || "";
                     if (content) {
+                        // Append the new content and re-render the bot's message.
+                        // 新しいコンテンツを追記し、ボットのメッセージを再描画する。
                         responseText += content;
                         botMessageDiv.innerHTML = md.render(responseText);
                         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -604,13 +702,17 @@ h1 {
       }
     } catch (error) {
       responseText = `An error occurred: ${error.message}`;
-      botMessageDiv.innerHTML = responseText; // エラーメッセージを表示
+      // Display the error message.
+      // エラーメッセージを表示
+      botMessageDiv.innerHTML = responseText; 
       console.error("Fetch error:", error);
     } finally {
+        // Ensure rendering and history addition are performed.
         // レンダリングと履歴追加を確実に行う
         botMessageDiv.innerHTML = md.render(responseText);
         chatContainer.scrollTop = chatContainer.scrollHeight;
         hljs.highlightAll();
+        // Add to history only if the last message does not have the same content.
         // 最後のメッセージが同じ内容でない場合のみ履歴に追加
         if (conversationHistory.length === 0 || conversationHistory[conversationHistory.length - 1]?.content !== responseText) {
              if(responseText.trim()){
@@ -620,9 +722,14 @@ h1 {
     }
   });
 
+  // --- Key Input Event (No changes) ---
   // --- キー入力イベント (変更なし) ---
   promptInput.addEventListener('keydown', (e) => {
+      // If Enter is pressed without Shift,
+      // ShiftキーなしでEnterキーが押された場合、
       if (e.key === 'Enter' && !e.shiftKey) {
+          // prevent the default action (new line) and click the send button.
+          // デフォルトの動作（改行）を防ぎ、送信ボタンをクリックする。
           e.preventDefault();
           sendButton.click();
       }
