@@ -17,14 +17,12 @@
 
 1. **LM Studioの準備**  
    * お使いのPCに[LM Studio](https://lmstudio.ai/)をインストールし、実行します。  
-   * 左側のメニューから 🚀 アイコンをクリックし、ローカルサーバーを起動します。  
+   * 左側のメニューから「開発者」をクリックし、ローカルサーバーを起動します。 
+
 2. **接続先アドレスの編集**  
-   * index.html ファイルを開き、297行目付近にあるfetch関数のURLを、あなたのLM Studioサーバーのアドレスに書き換えます。  
-     // const response \= await fetch('\[http://xxx.xxx.xxx.xxx:1234/v1/chat/completions\](http://xxx.xxx.xxx.xxx:1234/v1/chat/completions)', {  
-     const response \= await fetch('http://localhost:1234/v1/chat/completions', { // \<-- このように編集
+   * index.htmlからWebアプリを起動し、「settings」ボタンから、LM StudioのIPとポート番号を入力し「save」ボタンで保存します。
 
 3. **チャットの開始**  
-   * 編集したindex.htmlファイルをWebブラウザで開きます。  
    * プロンプトを入力したり、「file」ボタンからファイルをアップロードしたりして、「Send」ボタンで送信します。
 
 ## **依存ライブラリ**
